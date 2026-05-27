@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🎧 YouTube Mixer Pro - Com Importação de Playlist</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0a0f1e 0%, #0c1222 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .player-container {
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        .players-stack {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            background: #000;
+        }
+        .player-slot {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: opacity 0.6s ease-in-out;
+        }
+        .player-slot iframe { width: 100%; height: 100%; border: none; }
+        .player-visible { opacity: 1; z-index: 2; }
+        .player-hidden { opacity: 0; z-index: 1; }
+        .main-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .main-controls button {
+            background: #1e243b;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            padding: 12px 25px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .main-controls button:hover { background: #ff4500; transform: scale(1.02); }
+        .main-controls button:active { transform: scale(0.98); }
+        .play-btn { min-width: 120px; background: #ff4500; }
+        .settings-bar {
+            background: rgba(30, 36, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 60px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+        .crossfade-control { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .crossfade-control input { width: 280px; cursor: pointer; }
+        .playlist-area {
+            background: rgba(30, 36, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+        }
+        .playlist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .add-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            flex: 2;
+        }
+        .add-form {
+            display: flex;
+            gap: 10px;
+            flex: 2;
+            min-width: 250px;
+        }
+        .add-form input {
+            flex: 1;
+            padding: 12px 18px;
+            border-radius: 50px;
+            border: none;
+            background: #1a1f35;
+            color: white;
+            font-size: 0.9rem;
+        }
+        .add-form input::placeholder { color: #888; }
+        .add-form button {
+            background: #ff4500;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .import-playlist-btn {
+            background: #2c6e9e;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .empty-playlist {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            font-style: italic;
+        }
+        .track-list {
+            max-height: 350px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .track-item {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .track-item:hover { background: rgba(255, 69, 0, 0.3); }
+        .track-item.active {
+            background: #ff4500;
+            box-shadow: 0 0 15px rgba(255, 69, 0, 0.5);
+        }
+        .track-num { font-weight: bold; width: 35px; color: #aaa; }
+        .track-item.active .track-num { color: white; }
+        .track-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .track-actions { display: flex; gap: 8px; }
+        .track-actions button {
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .track-actions button:hover { background: rgba(0, 0, 0, 0.9); }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            font-size: 0.85rem;
+            color: #aaa;
+            text-align: center;
+        }
+        .clear-btn {
+            background: #8b0000;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: #1a1f35;
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 50px;
+            border: none;
+            background: #0a0f1e;
+            color: white;
+        }
+        .modal-content button {
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .warning-box {
+            background: rgba(255, 100, 0, 0.2);
+            border-left: 4px solid #ff4500;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        .method-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+        .method-btn {
+            background: #2c2c3e;
+            padding: 8px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .method-btn.active {
+            background: #ff4500;
+        }
+        @media (max-width: 700px) {
+            .track-title { font-size: 0.8rem; }
+            .track-actions button { padding: 4px 10px; }
+            .main-controls button { padding: 8px 16px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="player-container">
+        <div class="players-stack">
+            <div id="player1Slot" class="player-slot player-visible">
+                <div id="ytplayer1"></div>
+            </div>
+            <div id="player2Slot" class="player-slot player-hidden">
+                <div id="ytplayer2"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="main-controls">
+        <button id="prevBtn">⏮️ Anterior</button>
+        <button id="playPauseBtn" class="play-btn">▶️ Tocar</button>
+        <button id="nextBtn">⏭️ Próximo</button>
+    </div>
+    
+    <div class="settings-bar">
+        <div class="crossfade-control">
+            <span>🎚️ Crossfade (duração da mistura)</span>
+            <input type="range" id="crossfadeSlider" min="0" max="15" step="0.5" value="5">
+            <span id="crossfadeValue">5.0</span> <span>segundos</span>
+        </div>
+        <div><span>🔊 Controles do YouTube disponíveis</span></div>
+    </div>
+    
+    <div class="playlist-area">
+        <div class="playlist-header">
+            <strong>📋 MINHA PLAYLIST</strong>
+            <div class="add-section">
+                <div class="add-form">
+                    <input type="text" id="videoUrl" placeholder="URL ou ID do YouTube">
+                    <button id="addBtn">➕ Adicionar</button>
+                </div>
+                <button id="importPlaylistBtn" class="import-playlist-btn">📋 Importar Playlist do YouTube</button>
+                <button id="clearAllBtn" class="clear-btn">🗑️ Limpar tudo</button>
+            </div>
+        </div>
+        
+        <div class="warning-box">
+            ⚠️ <strong>Importar playlist:</strong> Cole a URL completa da playlist. Exemplo: <code>https://www.youtube.com/playlist?list=PLxxxxxx</code>
+        </div>
+        
+        <div id="trackListContainer">
+            <div class="empty-playlist">✨ Playlist vazia. Adicione vídeos ou importe uma playlist do YouTube.</div>
+        </div>
+        
+        <div id="statusMsg" class="status">🎵 Adicione músicas e clique nelas para tocar</div>
+    </div>
+</div>
+
+<div id="importModal" class="modal">
+    <div class="modal-content">
+        <h3>📋 Importar Playlist do YouTube</h3>
+        <p>Cole a URL da playlist do YouTube:</p>
+        <input type="text" id="playlistUrl" placeholder="https://www.youtube.com/playlist?list=PLxxxxxx">
+        <div class="method-selector">
+            <div class="method-btn active" data-method="proxy">🔄 Via Proxy (recomendado)</div>
+            <div class="method-btn" data-method="direct">📡 Direto (se proxy falhar)</div>
+        </div>
+        <div>
+            <button id="confirmImportBtn">✅ Importar</button>
+            <button id="cancelImportBtn">❌ Cancelar</button>
+        </div>
+        <div id="importStatus" style="margin-top: 10px; font-size: 0.8rem;"></div>
+    </div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+    let playlist = [];
+    let currentIndex = -1;
+    let isPlaying = false;
+    let crossfadeSec = 5;
+    let isFading = false;
+    let fadeTimer = null;
+    let nextScheduled = false;
+    let checkInterval = null;
+    let importMethod = 'proxy'; // 'proxy' ou 'direct'
+    
+    let playerA = null;
+    let playerB = null;
+    let activeIsA = true;
+    let playersLoaded = { a: false, b: false };
+    
+    const trackContainer = document.getElementById('trackListContainer');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const addBtn = document.getElementById('addBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const importPlaylistBtn = document.getElementById('importPlaylistBtn');
+    const videoUrlInput = document.getElementById('videoUrl');
+    const crossfadeSlider = document.getElementById('crossfadeSlider');
+    const crossfadeValue = document.getElementById('crossfadeValue');
+    const statusDiv = document.getElementById('statusMsg');
+    
+    const slot1 = document.getElementById('player1Slot');
+    const slot2 = document.getElementById('player2Slot');
+    
+    const modal = document.getElementById('importModal');
+    const playlistUrlInput = document.getElementById('playlistUrl');
+    const confirmImportBtn = document.getElementById('confirmImportBtn');
+    const cancelImportBtn = document.getElementById('cancelImportBtn');
+    const importStatus = document.getElementById('importStatus');
+    
+    crossfadeSlider.addEventListener('input', (e) => { 
+        crossfadeSec = parseFloat(e.target.value); 
+        crossfadeValue.innerText = crossfadeSec.toFixed(1);
+    });
+    
+    // Seleção do método de importação
+    document.querySelectorAll('.method-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            importMethod = btn.dataset.method;
+        });
+    });
+    
+    function extractVideoId(input) {
+        let text = input.trim();
+        if (/^[a-zA-Z0-9_-]{11}$/.test(text)) return text;
+        const patterns = [
+            /(?:youtube\.com\/watch\?v=)([^&]+)/i,
+            /(?:youtu\.be\/)([^?]+)/i,
+            /(?:youtube\.com\/embed\/)([^\/?]+)/i,
+            /(?:youtube\.com\/shorts\/)([^\/?]+)/i,
+            /(?:youtube\.com\/v\/)([^\/?]+)/i
+        ];
+        for (let p of patterns) {
+            const match = text.match(p);
+            if (match) return match[1];
+        }
+        return null;
+    }
+    
+    function extractPlaylistId(url) {
+        // Tenta extrair o ID da playlist de vários formatos
+        let match = url.match(/[&?]list=([^&]+)/i);
+        if (match) return match[1];
+        
+        // Formato: /playlist?list=XXXX
+        match = url.match(/\/playlist\?.*[&?]list=([^&]+)/i);
+        if (match) return match[1];
+        
+        // URL curta
+        match = url.match(/youtube\.com\/playlist\?list=([^&]+)/i);
+        if (match) return match[1];
+        
+        return null;
+    }
+    
+    // Método 1: Usar proxy CORS para contornar bloqueio
+    async function importPlaylistViaProxy(playlistId) {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://www.youtube.com/playlist?list=${playlistId}`)}`;
+        const response = await fetch(proxyUrl);
+        const html = await response.text();
+        
+        const videoIds = [];
+        const regex = /\/watch\?v=([a-zA-Z0-9_-]{11})/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            if (!videoIds.includes(match[1])) {
+                videoIds.push(match[1]);
+            }
+        }
+        
+        if (videoIds.length === 0) {
+            throw new Error("Nenhum vídeo encontrado na playlist");
+        }
+        
+        return videoIds;
+    }
+    
+    // Método 2: Usar API pública do YouTube (requer chave, mas funciona sem CORS)
+    // Infelizmente a API do YouTube precisa de chave. Vamos usar um serviço alternativo
+    async function importPlaylistViaService(playlistId) {
+        // Usa o serviço ytplaylist-len.herokuapp.com (não requer chave)
+        const serviceUrl = `https://ytplaylist-len.herokuapp.com/api/playlist?id=${playlistId}`;
+        try {
+            const response = await fetch(serviceUrl);
+            const data = await response.json();
+            if (data && data.videos) {
+                return data.videos.map(v => v.id);
+            }
+            throw new Error("Resposta inválida do serviço");
+        } catch (e) {
+            throw new Error("Serviço indisponível, tente o método proxy");
+        }
+    }
+    
+    // Método 3: Tentar via página do YouTube com outro proxy
+    async function importPlaylistViaCorsAnywhere(playlistId) {
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/https://www.youtube.com/playlist?list=${playlistId}`;
+        const response = await fetch(proxyUrl, {
+            headers: { 'Origin': 'https://www.youtube.com' }
+        });
+        const html = await response.text();
+        
+        const videoIds = [];
+        const regex = /\/watch\?v=([a-zA-Z0-9_-]{11})/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            if (!videoIds.includes(match[1])) {
+                videoIds.push(match[1]);
+            }
+        }
+        
+        if (videoIds.length === 0) {
+            throw new Error("Nenhum vídeo encontrado");
+        }
+        return videoIds;
+    }
+    
+    async function importYouTubePlaylist(playlistId) {
+        if (importMethod === 'proxy') {
+            try {
+                return await importPlaylistViaProxy(playlistId);
+            } catch (e) {
+                console.log("Proxy falhou, tentando método alternativo...");
+                return await importPlaylistViaCorsAnywhere(playlistId);
+            }
+        } else {
+            try {
+                return await importPlaylistViaCorsAnywhere(playlistId);
+            } catch (e) {
+                console.log("Método direto falhou, tentando proxy...");
+                return await importPlaylistViaProxy(playlistId);
+            }
+        }
+    }
+    
+    async function getVideoTitle(videoId) {
+        try {
+            const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+            const data = await res.json();
+            return data.title || `Vídeo ${videoId}`;
+        } catch(e) {
+            return `🎬 ${videoId}`;
+        }
+    }
+    
+    async function addMultipleTracks(videoIds) {
+        updateStatus(`⏳ Importando ${videoIds.length} vídeos...`);
+        for (let i = 0; i < videoIds.length; i++) {
+            const title = await getVideoTitle(videoIds[i]);
+            playlist.push({ id: videoIds[i], title });
+            if ((i + 1) % 5 === 0 || i === videoIds.length - 1) {
+                renderPlaylist();
+                updateStatus(`⏳ Importando: ${i + 1}/${videoIds.length}`);
+            }
+        }
+        if (currentIndex === -1 && playlist.length > 0) currentIndex = 0;
+        renderPlaylist();
+        savePlaylist();
+        updateStatus(`✅ Importados ${videoIds.length} vídeos!`);
+        if (playlist.length > 0 && playersLoaded.a && playersLoaded.b) {
+            const activePlayer = activeIsA ? playerA : playerB;
+            activePlayer.cueVideoById(playlist[0].id);
+        }
+    }
+    
+    function updateStatus(msg, isError = false) {
+        statusDiv.innerHTML = isError ? `❌ ${msg}` : `🎧 ${msg}`;
+        if (!isError) {
+            setTimeout(() => {
+                if (statusDiv.innerHTML === `🎧 ${msg}` && currentIndex >= 0 && playlist[currentIndex]) {
+                    statusDiv.innerHTML = `🎵 Tocando: ${playlist[currentIndex].title.substring(0, 60)}`;
+                }
+            }, 3000);
+        }
+    }
+    
+    function savePlaylist() {
+        localStorage.setItem('mixer_playlist', JSON.stringify(playlist.map(p => p.id)));
+        localStorage.setItem('mixer_current', currentIndex);
+    }
+    
+    async function loadPlaylistFromStorage() {
+        const saved = localStorage.getItem('mixer_playlist');
+        if (saved) {
+            const ids = JSON.parse(saved);
+            playlist = [];
+            for (let id of ids) {
+                const title = await getVideoTitle(id);
+                playlist.push({ id, title });
+            }
+            const savedIndex = localStorage.getItem('mixer_current');
+            if (savedIndex && savedIndex >= 0 && savedIndex < playlist.length) {
+                currentIndex = parseInt(savedIndex);
+            } else {
+                currentIndex = playlist.length > 0 ? 0 : -1;
+            }
+        } else {
+            playlist = [];
+            currentIndex = -1;
+        }
+        renderPlaylist();
+        if (playlist.length > 0 && currentIndex >= 0 && playersLoaded.a && playersLoaded.b) {
+            const activePlayer = activeIsA ? playerA : playerB;
+            activePlayer.cueVideoById(playlist[currentIndex].id);
+        }
+    }
+    
+    function renderPlaylist() {
+        if (playlist.length === 0) {
+            trackContainer.innerHTML = `<div class="empty-playlist">✨ Playlist vazia. Adicione vídeos ou importe uma playlist do YouTube.</div>`;
+            return;
+        }
+        const html = `<div class="track-list">${playlist.map((track, idx) => `
+            <div class="track-item ${idx === currentIndex ? 'active' : ''}" data-index="${idx}">
+                <span class="track-num">${idx + 1}</span>
+                <span class="track-title" title="${track.title}">${track.title.substring(0, 65)}</span>
+                <div class="track-actions">
+                    <button class="play-track" data-idx="${idx}">▶️ Tocar</button>
+                    <button class="remove-track" data-idx="${idx}">🗑️</button>
+                </div>
+            </div>`).join('')}</div>`;
+        trackContainer.innerHTML = html;
+        document.querySelectorAll('.play-track').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playTrack(parseInt(btn.dataset.idx));
+            });
+        });
+        document.querySelectorAll('.remove-track').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeTrack(parseInt(btn.dataset.idx));
+            });
+        });
+        document.querySelectorAll('.track-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') return;
+                playTrack(parseInt(item.dataset.index));
+            });
+        });
+    }
+    
+    async function addTrack(urlOrId) {
+        const videoId = extractVideoId(urlOrId);
+        if (!videoId) {
+            updateStatus("URL ou ID inválido!", true);
+            return false;
+        }
+        updateStatus(`⏳ Buscando informações...`);
+        const title = await getVideoTitle(videoId);
+        playlist.push({ id: videoId, title });
+        if (currentIndex === -1 && playlist.length === 1) currentIndex = 0;
+        renderPlaylist();
+        savePlaylist();
+        updateStatus(`✅ Adicionado: ${title.substring(0, 50)}`);
+        if (playlist.length === 1 && playersLoaded.a && playersLoaded.b) {
+            const activePlayer = activeIsA ? playerA : playerB;
+            activePlayer.cueVideoById(videoId);
+        }
+        return true;
+    }
+    
+    function removeTrack(index) {
+        if (index < 0 || index >= playlist.length) return;
+        const wasPlaying = (index === currentIndex && isPlaying);
+        playlist.splice(index, 1);
+        if (playlist.length === 0) {
+            currentIndex = -1;
+            isPlaying = false;
+            playPauseBtn.innerHTML = '▶️ Tocar';
+            if (playerA) playerA.stopVideo();
+            if (playerB) playerB.stopVideo();
+            renderPlaylist();
+            updateStatus("⚠️ Playlist vazia.");
+            savePlaylist();
+            return;
+        }
+        if (index < currentIndex) currentIndex--;
+        else if (index === currentIndex) {
+            if (currentIndex >= playlist.length) currentIndex = playlist.length - 1;
+            if (currentIndex >= 0 && wasPlaying) {
+                playTrack(currentIndex);
+            } else if (currentIndex >= 0) {
+                renderPlaylist();
+                const activePlayer = activeIsA ? playerA : playerB;
+                activePlayer.cueVideoById(playlist[currentIndex].id);
+            }
+        }
+        renderPlaylist();
+        savePlaylist();
+    }
+    
+    function clearAllTracks() {
+        playlist = [];
+        currentIndex = -1;
+        isPlaying = false;
+        playPauseBtn.innerHTML = '▶️ Tocar';
+        if (playerA) playerA.stopVideo();
+        if (playerB) playerB.stopVideo();
+        renderPlaylist();
+        savePlaylist();
+        updateStatus("🗑️ Playlist limpa.");
+    }
+    
+    function getActivePlayer() { return activeIsA ? playerA : playerB; }
+    function getInactivePlayer() { return activeIsA ? playerB : playerA; }
+    
+    function setActivePlayer(useA) {
+        if (activeIsA === useA) return;
+        activeIsA = useA;
+        if (useA) {
+            slot1.classList.remove('player-hidden');
+            slot1.classList.add('player-visible');
+            slot2.classList.remove('player-visible');
+            slot2.classList.add('player-hidden');
+        } else {
+            slot2.classList.remove('player-hidden');
+            slot2.classList.add('player-visible');
+            slot1.classList.remove('player-visible');
+            slot1.classList.add('player-hidden');
+        }
+    }
+    
+    function checkAndScheduleCrossfade() {
+        if (!isPlaying || isFading || nextScheduled || playlist.length === 0) return;
+        const active = getActivePlayer();
+        if (!active || typeof active.getCurrentTime !== 'function') return;
+        const duration = active.getDuration();
+        const currentTime = active.getCurrentTime();
+        const remaining = duration - currentTime;
+        
+        if (remaining > 0 && remaining <= crossfadeSec + 0.5) {
+            nextScheduled = true;
+            const nextIndex = (currentIndex + 1) % playlist.length;
+            if (nextIndex !== currentIndex && playlist[nextIndex]) {
+                performCrossfade(nextIndex);
+            }
+        } else if (remaining > crossfadeSec + 0.5) {
+            if (checkInterval) clearTimeout(checkInterval);
+            checkInterval = setTimeout(() => {
+                nextScheduled = false;
+                checkAndScheduleCrossfade();
+            }, 500);
+        }
+    }
+    
+    function performCrossfade(nextIndex) {
+        if (isFading || !playlist[nextIndex]) return;
+        isFading = true;
+        const nextVideo = playlist[nextIndex];
+        const inactivePlayer = getInactivePlayer();
+        const newWillBeA = !activeIsA;
+        updateStatus(`🎚️ Crossfade (${crossfadeSec}s): ${playlist[currentIndex]?.title} → ${nextVideo.title}`);
+        
+        inactivePlayer.loadVideoById(nextVideo.id);
+        setTimeout(() => {
+            const state = inactivePlayer.getPlayerState();
+            if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) {
+                inactivePlayer.playVideo();
+            }
+        }, 100);
+        
+        slot1.style.transition = `opacity ${crossfadeSec}s ease`;
+        slot2.style.transition = `opacity ${crossfadeSec}s ease`;
+        if (newWillBeA) {
+            slot1.style.opacity = '1';
+            slot2.style.opacity = '0';
+        } else {
+            slot1.style.opacity = '0';
+            slot2.style.opacity = '1';
+        }
+        
+        if (fadeTimer) clearTimeout(fadeTimer);
+        fadeTimer = setTimeout(() => {
+            getActivePlayer().stopVideo();
+            slot1.style.transition = '';
+            slot2.style.transition = '';
+            slot1.style.opacity = '';
+            slot2.style.opacity = '';
+            setActivePlayer(newWillBeA);
+            currentIndex = nextIndex;
+            isFading = false;
+            nextScheduled = false;
+            isPlaying = true;
+            playPauseBtn.innerHTML = '⏸️ Pausar';
+            renderPlaylist();
+            updateStatus(`🎵 Tocando: ${playlist[currentIndex].title}`);
+            setTimeout(() => { checkAndScheduleCrossfade(); }, 500);
+        }, crossfadeSec * 1000);
+    }
+    
+    function playTrack(index) {
+        if (index < 0 || index >= playlist.length) return;
+        if (fadeTimer) clearTimeout(fadeTimer);
+        isFading = false;
+        nextScheduled = false;
+        const video = playlist[index];
+        const active = getActivePlayer();
+        if (currentIndex === index && isPlaying && active.getPlayerState() === YT.PlayerState.PLAYING) return;
+        currentIndex = index;
+        active.loadVideoById(video.id);
+        active.playVideo();
+        isPlaying = true;
+        playPauseBtn.innerHTML = '⏸️ Pausar';
+        if (activeIsA) {
+            slot1.classList.add('player-visible');
+            slot1.classList.remove('player-hidden');
+            slot2.classList.add('player-hidden');
+            slot2.classList.remove('player-visible');
+        } else {
+            slot2.classList.add('player-visible');
+            slot2.classList.remove('player-hidden');
+            slot1.classList.add('player-hidden');
+            slot1.classList.remove('player-visible');
+        }
+        renderPlaylist();
+        updateStatus(`🎵 Tocando: ${video.title.substring(0, 60)}`);
+        setTimeout(() => { checkAndScheduleCrossfade(); }, 1000);
+    }
+    
+    function nextTrack() {
+        if (playlist.length === 0) return;
+        if (isFading) { if (fadeTimer) clearTimeout(fadeTimer); isFading = false; }
+        const next = (currentIndex + 1) % playlist.length;
+        playTrack(next);
+    }
+    
+    function prevTrack() {
+        if (playlist.length === 0) return;
+        if (isFading) { if (fadeTimer) clearTimeout(fadeTimer); isFading = false; }
+        let prev = currentIndex - 1;
+        if (prev < 0) prev = playlist.length - 1;
+        playTrack(prev);
+    }
+    
+    function togglePlayPause() {
+        if (playlist.length === 0) { updateStatus("Adicione músicas primeiro!", true); return; }
+        const active = getActivePlayer();
+        if (!active) return;
+        if (isPlaying) {
+            active.pauseVideo();
+            isPlaying = false;
+            playPauseBtn.innerHTML = '▶️ Tocar';
+            updateStatus(`⏸️ Pausado: ${playlist[currentIndex]?.title.substring(0, 50)}`);
+        } else {
+            active.playVideo();
+            isPlaying = true;
+            playPauseBtn.innerHTML = '⏸️ Pausar';
+            updateStatus(`🎵 Tocando: ${playlist[currentIndex]?.title.substring(0, 50)}`);
+            checkAndScheduleCrossfade();
+        }
+    }
+    
+    function onPlayerStateChange(event, isPlayerA) {
+        if (event.data === YT.PlayerState.ENDED && !isFading) {
+            if (playlist.length > 0) {
+                const next = (currentIndex + 1) % playlist.length;
+                if (next !== currentIndex) {
+                    setTimeout(() => { if (!isFading) playTrack(next); }, 100);
+                }
+            }
+        }
+        if (event.data === YT.PlayerState.PLAYING && !isFading) {
+            const isThisActive = (isPlayerA === activeIsA);
+            if (isThisActive) checkAndScheduleCrossfade();
+        }
+        if (event.data === YT.PlayerState.BUFFERING && !isFading) {
+            setTimeout(() => { if (!isFading && isPlaying) checkAndScheduleCrossfade(); }, 1000);
+        }
+    }
+    
+    function onYouTubeIframeAPIReady() {
+        playerA = new YT.Player('ytplayer1', {
+            height: '100%', width: '100%',
+            playerVars: { controls: 1, modestbranding: 1, rel: 0, fs: 1, autoplay: 0 },
+            events: { 
+                onReady: () => { playersLoaded.a = true; if(playersLoaded.a && playersLoaded.b) { updateStatus("✅ App pronto!"); loadPlaylistFromStorage(); } }, 
+                onStateChange: (e) => onPlayerStateChange(e, true) 
+            }
+        });
+        playerB = new YT.Player('ytplayer2', {
+            height: '100%', width: '100%',
+            playerVars: { controls: 1, modestbranding: 1, rel: 0, fs: 1, autoplay: 0 },
+            events: { 
+                onReady: () => { playersLoaded.b = true; if(playersLoaded.a && playersLoaded.b) { updateStatus("✅ App pronto!"); loadPlaylistFromStorage(); } }, 
+                onStateChange: (e) => onPlayerStateChange(e, false) 
+            }
+        });
+    }
+    
+    function openImportModal() { 
+        modal.style.display = 'flex'; 
+        playlistUrlInput.value = ''; 
+        importStatus.innerHTML = '';
+        // Reset para método proxy
+        importMethod = 'proxy';
+        document.querySelectorAll('.method-btn').forEach(btn => {
+            if (btn.dataset.method === 'proxy') btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
+    function closeImportModal() { modal.style.display = 'none'; }
+    
+    async function handleImportPlaylist() {
+        let url = playlistUrlInput.value.trim();
+        if (!url) { importStatus.innerHTML = '❌ Digite a URL da playlist'; return; }
+        
+        // Se for URL de vídeo com list=, extrai só o list
+        if (url.includes('watch?v=') && url.includes('&list=')) {
+            const match = url.match(/[&?]list=([^&]+)/);
+            if (match) url = `https://www.youtube.com/playlist?list=${match[1]}`;
+        }
+        
+        const playlistId = extractPlaylistId(url);
+        if (!playlistId) { 
+            importStatus.innerHTML = '❌ URL inválida. Use o formato: https://www.youtube.com/playlist?list=PLxxxxxx'; 
+            return; 
+        }
+        
+        importStatus.innerHTML = '<span class="loading"></span> Importando playlist...';
+        try {
+            const videoIds = await importYouTubePlaylist(playlistId);
+            if (videoIds.length === 0) throw new Error('Nenhum vídeo encontrado');
+            await addMultipleTracks(videoIds);
+            closeImportModal();
+        } catch (error) { 
+            importStatus.innerHTML = `❌ Erro: ${error.message}. Verifique se a playlist é pública.`; 
+        }
+    }
+    
+    addBtn.addEventListener('click', async () => { const input = videoUrlInput.value.trim(); if(input) { await addTrack(input); videoUrlInput.value = ''; } else { updateStatus("Digite uma URL ou ID", true); } });
+    videoUrlInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addBtn.click(); });
+    clearAllBtn.addEventListener('click', () => { if (playlist.length > 0 && confirm("Tem certeza?")) clearAllTracks(); });
+    importPlaylistBtn.addEventListener('click', openImportModal);
+    confirmImportBtn.addEventListener('click', handleImportPlaylist);
+    cancelImportBtn.addEventListener('click', closeImportModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeImportModal(); });
+    prevBtn.addEventListener('click', prevTrack);
+    nextBtn.addEventListener('click', nextTrack);
+    playPauseBtn.addEventListener('click', togglePlayPause);
+    
+    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+</script>
+</body>
+</html>
