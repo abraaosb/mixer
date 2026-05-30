@@ -3,12 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>NFC-e Scanner - Controle de Gastos</title>
-  <!-- Tailwind CSS + Google Fonts -->
+  <title>NFC-e Scanner - Sem Backend (Proxy CORS)</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Chart.js para gráficos -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     .scan-target {
@@ -34,21 +31,17 @@
     }
     .scan-target::before { top: -2px; left: -2px; border-top-width: 4px; border-left-width: 4px; }
     .scan-target::after { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; }
-    .fab { transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .fab { transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
     .fab:active { transform: scale(0.96); }
     .no-scrollbar::-webkit-scrollbar { display: none; }
-    .flash-btn { backdrop-filter: blur(8px); transition: all 0.2s; }
-    .flash-btn:active { transform: scale(0.95); }
-    .url-modal { background: rgba(0,0,0,0.9); backdrop-filter: blur(12px); }
   </style>
 </head>
 <body class="bg-gray-100 font-sans antialiased">
 
-  <!-- DASHBOARD PRINCIPAL -->
   <div class="max-w-lg mx-auto bg-gray-50 min-h-screen pb-24 relative">
     <header class="bg-white shadow-sm px-5 py-4 sticky top-0 z-10">
       <h1 class="text-xl font-bold text-gray-800">💰 Meus Gastos NFC-e</h1>
-      <p class="text-xs text-gray-500">Escaneie ou cole a URL do cupom fiscal (dados reais)</p>
+      <p class="text-xs text-gray-500">Escaneie ou cole a URL (dados reais, sem backend)</p>
     </header>
 
     <div class="px-4 pt-4 grid grid-cols-2 gap-3">
@@ -95,36 +88,30 @@
     </button>
   </div>
 
-  <!-- MODAL DO SCANNER QR CODE -->
+  <!-- MODAL SCANNER -->
   <div id="scannerModal" class="fixed inset-0 z-50 hidden flex-col bg-black">
     <div class="relative w-full h-full">
       <div id="qr-reader-container" class="w-full h-full bg-black"></div>
       <div class="scan-target pointer-events-none"></div>
-      
       <div class="absolute top-5 right-5 flex gap-3 z-10">
         <button id="manualUrlBtn" class="bg-black/60 text-white p-2 rounded-full backdrop-blur-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
         </button>
         <button id="closeScannerBtn" class="bg-black/60 text-white p-2 rounded-full backdrop-blur-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
-      
       <div class="absolute bottom-8 left-0 right-0 text-center text-white text-sm bg-black/50 py-2 backdrop-blur-sm">
-        Aponte para o QR Code ou toque no ícone de URL para digitar manualmente
+        Aponte para o QR Code ou toque no ícone de URL
       </div>
     </div>
   </div>
 
-  <!-- MODAL PARA INSERIR URL MANUALMENTE -->
+  <!-- MODAL URL MANUAL -->
   <div id="urlInputModal" class="fixed inset-0 z-60 hidden items-center justify-center p-4 bg-black/80">
     <div class="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl">
       <h3 class="text-lg font-bold text-gray-800 mb-2">Inserir URL da NFC-e</h3>
-      <p class="text-xs text-gray-500 mb-3">Cole o link completo do QR Code do cupom fiscal (ex: https://www.nfce.fazenda.sp.gov.br/...)</p>
+      <p class="text-xs text-gray-500 mb-3">Cole o link completo do QR Code (ex: https://www.nfce.fazenda.sp.gov.br/...)</p>
       <textarea id="manualUrlInput" rows="3" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-mono" placeholder="https://..."></textarea>
       <div class="flex gap-3 mt-4">
         <button id="cancelUrlBtn" class="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg">Cancelar</button>
@@ -134,15 +121,14 @@
   </div>
 
   <script>
-    // ========== CONFIGURAÇÕES ==========
-    // ENDEREÇO DO PROXY NODE.JS (DEVE ESTAR RODANDO)
-    const PROXY_URL = "http://localhost:3001/api/parse-nfce";
-
+    // ========== CONFIGURACAO ==========
+    // Usamos um proxy CORS público para contornar bloqueios
+    const CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
     const STORAGE_KEY = "nfce_data";
     let notasCache = { notas: {} };
     let chartInstance = null;
 
-    // ========== FUNÇÕES DE ARMAZENAMENTO ==========
+    // ========== LOCALSTORAGE ==========
     function carregarLocalStorage() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -151,26 +137,15 @@
           notasCache = parsed.notas ? parsed : { notas: parsed };
           if (!notasCache.notas) notasCache = { notas: {} };
         } catch(e) { notasCache = { notas: {} }; }
-      } else {
-        notasCache = { notas: {} };
       }
-      return notasCache;
     }
-
     function salvarLocalStorage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ notas: notasCache.notas }));
     }
-
     function adicionarNota(nota) {
       const chave = nota.chaveAcesso;
-      if (!chave) {
-        alert("Nota sem chave de acesso. Dados inválidos.");
-        return false;
-      }
-      if (notasCache.notas[chave]) {
-        alert("Esta nota já foi escaneada anteriormente!");
-        return false;
-      }
+      if (!chave) { alert("Nota sem chave de acesso."); return false; }
+      if (notasCache.notas[chave]) { alert("Esta nota já foi escaneada!"); return false; }
       notasCache.notas[chave] = {
         estabelecimento: nota.estabelecimento,
         cnpj: nota.cnpj,
@@ -182,95 +157,175 @@
       atualizarDashboard();
       return true;
     }
-
     function excluirTodasNotas() {
-      if (confirm("Remover todas as notas escaneadas?")) {
+      if (confirm("Remover todas as notas?")) {
         notasCache.notas = {};
         salvarLocalStorage();
         atualizarDashboard();
       }
     }
 
-    // ========== EXTRAÇÃO REAL VIA PROXY (SEM MOCK) ==========
-    async function extrairNotaViaProxy(url) {
-      const response = await fetch(PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() })
+    // ========== EXTRAÇÃO REAL (via proxy CORS) ==========
+    async function extrairNotaReal(url) {
+      // 1. Buscar HTML via proxy CORS
+      const proxyUrl = CORS_PROXY + url;
+      const response = await fetch(proxyUrl, {
+        headers: { "X-Requested-With": "XMLHttpRequest" } // necessário para cors-anywhere
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Proxy respondeu com status ${response.status}: ${errorText}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status} - Falha ao acessar a página`);
+      const html = await response.text();
+
+      // 2. Parsear o HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      // 3. Extrair dados usando os mesmos seletores do scraper Node.js
+      // Estabelecimento
+      let estabelecimento = "";
+      const nomeEstab = doc.querySelector("#u20.txtTopo");
+      if (nomeEstab) estabelecimento = nomeEstab.textContent.trim();
+
+      // CNPJ
+      let cnpj = "";
+      const divsTexto = doc.querySelectorAll("div.text");
+      divsTexto.forEach(div => {
+        const text = div.textContent.trim();
+        const match = text.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
+        if (match) cnpj = match[0];
+      });
+
+      // Chave de acesso
+      let chaveAcesso = "";
+      const chaveElem = doc.querySelector(".chave");
+      if (chaveElem) chaveAcesso = chaveElem.textContent.replace(/\s/g, "");
+      if (!chaveAcesso) {
+        const urlMatch = url.match(/p=([A-F0-9]{44})/i);
+        if (urlMatch) chaveAcesso = urlMatch[1];
       }
-      const data = await response.json();
-      // Validação mínima dos dados retornados
-      if (!data.chaveAcesso || !data.estabelecimento || !data.itens || !data.valorTotal) {
-        throw new Error("Dados da nota incompletos ou mal formatados.");
+
+      // Data de emissão
+      let dataEmissaoStr = "";
+      const colapsiveis = doc.querySelectorAll("#infos .ui-collapsible-content ul li");
+      colapsiveis.forEach(li => {
+        const txt = li.textContent;
+        if (txt.includes("Emissão:")) {
+          const match = txt.match(/Emissão:\s*(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})/);
+          if (match) dataEmissaoStr = match[1];
+        }
+      });
+      let dataEmissaoISO = new Date().toISOString();
+      if (dataEmissaoStr) {
+        const [dataPart, horaPart] = dataEmissaoStr.split(" ");
+        const [dia, mes, ano] = dataPart.split("/");
+        dataEmissaoISO = new Date(`${ano}-${mes}-${dia}T${horaPart}`).toISOString();
       }
-      return data;
+
+      // Valor total da nota
+      let valorTotal = 0;
+      const totalElem = doc.querySelector("#totalNota #linhaTotal .totalNumb");
+      if (totalElem) {
+        const txt = totalElem.textContent.trim().replace(",", ".");
+        valorTotal = parseFloat(txt) || 0;
+      }
+
+      // Itens
+      const itens = [];
+      const linhas = doc.querySelectorAll("#tabResult tr");
+      linhas.forEach(row => {
+        const nomeElem = row.querySelector(".txtTit");
+        if (!nomeElem) return;
+        const nome = nomeElem.textContent.trim();
+        const codigoElem = row.querySelector(".RCod");
+        let codigo = codigoElem ? codigoElem.textContent.replace(/[()]/g, "") : "";
+        const qtdElem = row.querySelector(".Rqtd");
+        let qtd = 0;
+        if (qtdElem) {
+          let qtdTxt = qtdElem.textContent.replace("Qtde.:", "").replace(",", ".");
+          qtd = parseFloat(qtdTxt) || 0;
+        }
+        const unidElem = row.querySelector(".RUN");
+        let unidade = unidElem ? unidElem.textContent.replace("UN:", "") : "UN";
+        const vlUnitElem = row.querySelector(".RvlUnit");
+        let valorUnitario = 0;
+        if (vlUnitElem) {
+          let unitTxt = vlUnitElem.textContent.replace("Vl. Unit.:", "").replace(",", ".");
+          valorUnitario = parseFloat(unitTxt) || 0;
+        }
+        const totalItemElem = row.querySelector(".valor");
+        let valorTotalItem = 0;
+        if (totalItemElem) {
+          let totalTxt = totalItemElem.textContent.trim().replace(",", ".");
+          valorTotalItem = parseFloat(totalTxt) || 0;
+        }
+        if (nome) {
+          itens.push({
+            codigo: codigo || "N/A",
+            nome: nome,
+            qtd: qtd,
+            unidade: unidade,
+            valorUnitario: valorUnitario,
+            valorTotal: valorTotalItem
+          });
+        }
+      });
+
+      if (itens.length === 0) throw new Error("Nenhum item encontrado. A página pode ter estrutura diferente.");
+
+      return {
+        chaveAcesso,
+        estabelecimento,
+        cnpj,
+        dataEmissao: dataEmissaoISO,
+        valorTotal,
+        itens
+      };
     }
 
-    async function processarQRCode(url) {
-      if (!url || url.trim() === "") {
-        alert("URL inválida");
+    async function processarUrl(url) {
+      if (!url || !url.startsWith("http")) {
+        alert("URL inválida. Deve começar com http:// ou https://");
         return false;
       }
-      // Validação simples de URL
-      if (!url.startsWith("http")) {
-        alert("A URL deve começar com http:// ou https://");
-        return false;
-      }
-      
-      // Mostra loading (pequeno feedback)
-      const originalBtnText = document.getElementById("submitUrlBtn")?.innerText;
-      if (document.getElementById("submitUrlBtn")) {
-        document.getElementById("submitUrlBtn").innerText = "Processando...";
-        document.getElementById("submitUrlBtn").disabled = true;
-      }
-      
+      const btn = document.getElementById("submitUrlBtn");
+      const original = btn ? btn.innerText : "";
+      if (btn) { btn.innerText = "Buscando dados..."; btn.disabled = true; }
       try {
-        const nota = await extrairNotaViaProxy(url);
+        const nota = await extrairNotaReal(url);
         if (navigator.vibrate) navigator.vibrate(100);
         adicionarNota(nota);
         return true;
       } catch (err) {
         console.error(err);
-        let mensagem = "Erro ao processar a nota: " + err.message;
+        let msg = "Erro ao processar: " + err.message;
         if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-          mensagem = "Não foi possível conectar ao proxy. Certifique-se de que o servidor Node.js está rodando em " + PROXY_URL;
-        } else if (err.message.includes("404")) {
-          mensagem = "Proxy não encontrado. Verifique se o servidor está ativo e a rota correta.";
+          msg = "Falha de rede. O proxy CORS pode estar temporariamente indisponível. Tente novamente mais tarde ou use o proxy alternativo.";
+        } else if (err.message.includes("HTTP 403")) {
+          msg = "Proxy CORS bloqueou a requisição. Acesse https://cors-anywhere.herokuapp.com/ e clique em 'Request temporary access' antes de usar.";
         }
-        alert(mensagem);
+        alert(msg);
         return false;
       } finally {
-        if (document.getElementById("submitUrlBtn")) {
-          document.getElementById("submitUrlBtn").innerText = originalBtnText || "Processar";
-          document.getElementById("submitUrlBtn").disabled = false;
-        }
+        if (btn) { btn.innerText = original; btn.disabled = false; }
       }
     }
 
-    // ========== DASHBOARD ==========
+    // ========== DASHBOARD (idêntico ao anterior) ==========
     function calcularTotais() {
       let totalGeral = 0, totalMes = 0;
       const hoje = new Date();
-      const mesAtual = hoje.getMonth();
-      const anoAtual = hoje.getFullYear();
+      const mesAtual = hoje.getMonth(), anoAtual = hoje.getFullYear();
       Object.values(notasCache.notas).forEach(nota => {
         totalGeral += nota.valorTotal;
-        const dataNota = new Date(nota.dataEmissao);
-        if (dataNota.getMonth() === mesAtual && dataNota.getFullYear() === anoAtual) totalMes += nota.valorTotal;
+        const d = new Date(nota.dataEmissao);
+        if (d.getMonth() === mesAtual && d.getFullYear() === anoAtual) totalMes += nota.valorTotal;
       });
       return { totalGeral, totalMes };
     }
-
     function obterGastosPorDia(dias = 7) {
       const hoje = new Date();
       const map = new Map();
       for (let i = 0; i < dias; i++) {
-        const d = new Date(hoje);
-        d.setDate(hoje.getDate() - i);
+        const d = new Date(hoje); d.setDate(hoje.getDate() - i);
         const key = d.toISOString().split('T')[0];
         map.set(key, 0);
       }
@@ -278,194 +333,113 @@
         const dataStr = new Date(nota.dataEmissao).toISOString().split('T')[0];
         if (map.has(dataStr)) map.set(dataStr, map.get(dataStr) + nota.valorTotal);
       });
-      const sortedKeys = Array.from(map.keys()).sort();
-      return { labels: sortedKeys.map(d => d.slice(5)), values: sortedKeys.map(k => map.get(k)) };
+      const sorted = Array.from(map.keys()).sort();
+      return { labels: sorted.map(d => d.slice(5)), values: sorted.map(k => map.get(k)) };
     }
-
     function obterTopProdutos(limit = 5) {
-      const contagem = new Map();
+      const count = new Map();
       Object.values(notasCache.notas).forEach(nota => {
         nota.itens.forEach(item => {
           const nome = item.nome;
           const qtd = item.qtd || 1;
-          contagem.set(nome, (contagem.get(nome) || 0) + qtd);
+          count.set(nome, (count.get(nome) || 0) + qtd);
         });
       });
-      return Array.from(contagem.entries()).sort((a,b) => b[1] - a[1]).slice(0, limit).map(([nome, qtd]) => `${nome} (${qtd}x)`);
+      return Array.from(count.entries()).sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([nome,qtd])=>`${nome} (${qtd}x)`);
     }
-
     function obterTopEstabelecimentos(limit = 5) {
-      const contagem = new Map();
+      const count = new Map();
       Object.values(notasCache.notas).forEach(nota => {
         const nome = nota.estabelecimento;
-        contagem.set(nome, (contagem.get(nome) || 0) + 1);
+        count.set(nome, (count.get(nome) || 0) + 1);
       });
-      return Array.from(contagem.entries()).sort((a,b) => b[1] - a[1]).slice(0, limit).map(([nome, visits]) => `${nome} (${visits}x)`);
+      return Array.from(count.entries()).sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([nome,vis])=>`${nome} (${vis}x)`);
     }
-
     function renderizarHistorico() {
       const container = document.getElementById("historicoContainer");
-      const notasArray = Object.entries(notasCache.notas).map(([chave, dados]) => ({ chave, ...dados }))
-        .sort((a,b) => new Date(b.dataEmissao) - new Date(a.dataEmissao));
-      if (notasArray.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-400 py-4 text-sm">Nenhuma nota escaneada ainda</div>`;
-        return;
-      }
+      const notasArray = Object.entries(notasCache.notas).map(([chave,dados])=>({chave,...dados})).sort((a,b)=>new Date(b.dataEmissao)-new Date(a.dataEmissao));
+      if (notasArray.length===0) { container.innerHTML = `<div class="text-center text-gray-400 py-4">Nenhuma nota escaneada ainda</div>`; return; }
       container.innerHTML = notasArray.map(nota => `
         <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-green-500">
           <div class="flex justify-between items-start">
-            <div>
-              <p class="font-semibold text-sm">${nota.estabelecimento}</p>
-              <p class="text-xs text-gray-500">${new Date(nota.dataEmissao).toLocaleDateString()}</p>
-              <p class="text-xs text-gray-400 truncate max-w-[180px]">Chave: ${nota.chave.slice(0,12)}...</p>
-            </div>
+            <div><p class="font-semibold text-sm">${nota.estabelecimento}</p><p class="text-xs text-gray-500">${new Date(nota.dataEmissao).toLocaleDateString()}</p><p class="text-xs text-gray-400">Chave: ${nota.chave.slice(0,12)}...</p></div>
             <p class="font-bold text-indigo-600">R$ ${nota.valorTotal.toFixed(2)}</p>
           </div>
           <div class="text-xs text-gray-600 mt-1">${nota.itens.length} itens</div>
-        </div>
-      `).join('');
+        </div>`).join('');
     }
-
     function atualizarGrafico() {
       const { labels, values } = obterGastosPorDia(7);
       const ctx = document.getElementById('spendingChart').getContext('2d');
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(ctx, {
         type: 'line',
-        data: { labels, datasets: [{ label: 'Gasto (R$)', data: values, borderColor: '#4f46e5', backgroundColor: 'rgba(79, 70, 229, 0.1)', tension: 0.3, fill: true, pointBackgroundColor: '#4f46e5' }] },
-        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } } } }
+        data: { labels, datasets: [{ label: 'Gasto (R$)', data: values, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', tension: 0.3, fill: true }] },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top', labels: { font: { size: 10 } } } } }
       });
     }
-
     function atualizarDashboard() {
       const { totalGeral, totalMes } = calcularTotais();
       document.getElementById("totalGeral").innerText = `R$ ${totalGeral.toFixed(2)}`;
       document.getElementById("totalMes").innerText = `R$ ${totalMes.toFixed(2)}`;
-      document.getElementById("topProdutosList").innerHTML = obterTopProdutos(4).map(p => `<li>• ${p}</li>`).join('') || '<li>Sem dados</li>';
-      document.getElementById("topEstabelecimentosList").innerHTML = obterTopEstabelecimentos(4).map(e => `<li>• ${e}</li>`).join('') || '<li>Sem dados</li>';
+      document.getElementById("topProdutosList").innerHTML = obterTopProdutos(4).map(p=>`<li>• ${p}</li>`).join('')||'<li>Sem dados</li>';
+      document.getElementById("topEstabelecimentosList").innerHTML = obterTopEstabelecimentos(4).map(e=>`<li>• ${e}</li>`).join('')||'<li>Sem dados</li>';
       renderizarHistorico();
       atualizarGrafico();
     }
 
-    // ========== SCANNER QR CODE (CÂMERA) ==========
-    let html5QrCode = null;
-    let isScanning = false;
-    let flashEnabled = false;
-    let torchAvailable = false;
-
-    async function getBestCamera() {
-      const devices = await Html5Qrcode.getCameras();
-      if (devices.length === 0) throw new Error("Nenhuma câmera encontrada");
-      const backCamera = devices.find(device => device.label.toLowerCase().includes("back") || device.label.toLowerCase().includes("traseira"));
-      return backCamera ? backCamera.id : devices[0].id;
-    }
-
-    async function toggleFlash() {
-      if (!html5QrCode || !isScanning) return;
-      try {
-        flashEnabled = !flashEnabled;
-        await html5QrCode.applyVideoConstraints({ advanced: [{ torch: flashEnabled }] });
-        const flashBtn = document.getElementById("customFlashBtn");
-        if (flashBtn) {
-          flashBtn.innerHTML = flashEnabled ? "🔦 Ligada" : "🔦 Lanterna";
-          flashBtn.classList.toggle("bg-yellow-300", flashEnabled);
-        }
-      } catch(e) { alert("Lanterna não suportada"); }
-    }
-
+    // ========== SCANNER QR CODE (câmera) ==========
+    let html5QrCode = null, isScanning = false;
     async function iniciarScanner() {
       const modal = document.getElementById("scannerModal");
       modal.classList.remove("hidden");
       const container = document.getElementById("qr-reader-container");
-      container.innerHTML = `<div id="qr-reader" style="width: 100%; height: 100%;"></div>`;
-      
-      let flashBtn = document.getElementById("customFlashBtn");
-      if (!flashBtn) {
-        flashBtn = document.createElement("button");
-        flashBtn.id = "customFlashBtn";
-        flashBtn.innerHTML = "🔦 Lanterna";
-        flashBtn.className = "flash-btn absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-white/80 text-black px-5 py-2 rounded-full text-sm font-semibold shadow-lg z-20";
-        flashBtn.onclick = toggleFlash;
-        modal.querySelector(".relative")?.appendChild(flashBtn);
-      }
-      
-      html5QrCode = new Html5Qrcode("qr-reader", { verbose: false });
+      container.innerHTML = `<div id="qr-reader" style="width:100%;height:100%;"></div>`;
+      html5QrCode = new Html5Qrcode("qr-reader");
       try {
-        const cameraId = await getBestCamera();
-        await html5QrCode.start(cameraId, { fps: 30, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0, videoConstraints: { deviceId: { exact: cameraId }, facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } },
+        const devices = await Html5Qrcode.getCameras();
+        let cameraId = devices[0]?.id;
+        const back = devices.find(d => d.label.toLowerCase().includes("back"));
+        if (back) cameraId = back.id;
+        await html5QrCode.start(cameraId, { fps: 30, qrbox: { width: 220, height: 220 } },
           async (decodedText) => {
-            const target = document.querySelector(".scan-target");
-            if (target) { target.style.borderColor = "#4ade80"; setTimeout(() => target.style.borderColor = "rgba(255,255,255,0.9)", 150); }
             if (navigator.vibrate) navigator.vibrate(200);
-            try {
-              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-              const osc = audioCtx.createOscillator();
-              const gain = audioCtx.createGain();
-              osc.connect(gain);
-              gain.connect(audioCtx.destination);
-              osc.frequency.value = 880;
-              gain.gain.value = 0.2;
-              osc.start();
-              gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.3);
-              setTimeout(() => osc.stop(), 300);
-            } catch(e) {}
             pararScanner();
-            await processarQRCode(decodedText);
+            await processarUrl(decodedText);
           },
-          (err) => { if (err.includes("No MultiFormat")) return; }
+          (err) => { if (!err.includes("No MultiFormat")) console.warn(err); }
         );
         isScanning = true;
-        try { torchAvailable = await html5QrCode.isTorchAvailable(); if (!torchAvailable) flashBtn.style.display = "none"; } catch(e) { flashBtn.style.display = "none"; }
       } catch (err) { alert("Erro ao acessar câmera"); pararScanner(); }
     }
-    
     async function pararScanner() {
       if (html5QrCode && isScanning) {
-        try { if (torchAvailable && flashEnabled) await html5QrCode.applyVideoConstraints({ advanced: [{ torch: false }] }); await html5QrCode.stop(); await html5QrCode.clear(); } catch(e) {}
+        try { await html5QrCode.stop(); await html5QrCode.clear(); } catch(e) {}
       }
       isScanning = false;
       document.getElementById("scannerModal").classList.add("hidden");
       document.getElementById("qr-reader-container").innerHTML = "";
-      const flashBtn = document.getElementById("customFlashBtn");
-      if (flashBtn) flashBtn.remove();
     }
-
-    function abrirUrlModal() {
-      pararScanner(); // garante que a câmera seja fechada
-      document.getElementById("urlInputModal").classList.remove("hidden");
-      document.getElementById("urlInputModal").style.display = "flex";
-      document.getElementById("manualUrlInput").value = "";
-    }
-
-    function fecharUrlModal() {
-      document.getElementById("urlInputModal").classList.add("hidden");
-      document.getElementById("urlInputModal").style.display = "none";
-    }
-
+    function abrirUrlModal() { pararScanner(); document.getElementById("urlInputModal").classList.remove("hidden"); document.getElementById("urlInputModal").style.display = "flex"; document.getElementById("manualUrlInput").value = ""; }
+    function fecharUrlModal() { document.getElementById("urlInputModal").classList.add("hidden"); document.getElementById("urlInputModal").style.display = "none"; }
     async function submitManualUrl() {
       const url = document.getElementById("manualUrlInput").value.trim();
-      if (!url) {
-        alert("Digite ou cole a URL da NFC-e");
-        return;
-      }
+      if (!url) { alert("Digite ou cole a URL"); return; }
       fecharUrlModal();
-      const success = await processarQRCode(url);
-      if (success) atualizarDashboard();
+      await processarUrl(url);
     }
 
     // ========== EVENTOS ==========
-    document.getElementById("fabScanner").addEventListener("click", () => iniciarScanner());
-    document.getElementById("closeScannerBtn").addEventListener("click", () => pararScanner());
+    document.getElementById("fabScanner").addEventListener("click", iniciarScanner);
+    document.getElementById("closeScannerBtn").addEventListener("click", pararScanner);
     document.getElementById("manualUrlBtn").addEventListener("click", () => { pararScanner(); abrirUrlModal(); });
-    document.getElementById("cancelUrlBtn").addEventListener("click", () => fecharUrlModal());
-    document.getElementById("submitUrlBtn").addEventListener("click", () => submitManualUrl());
-    document.getElementById("clearDataBtn").addEventListener("click", () => excluirTodasNotas());
-    
+    document.getElementById("cancelUrlBtn").addEventListener("click", fecharUrlModal);
+    document.getElementById("submitUrlBtn").addEventListener("click", submitManualUrl);
+    document.getElementById("clearDataBtn").addEventListener("click", excluirTodasNotas);
+
     carregarLocalStorage();
     atualizarDashboard();
-
-    // Instrução no console
-    console.log("✅ Modo REAL ativo. Certifique-se de que o proxy Node.js está rodando em " + PROXY_URL);
+    console.log("✅ Usando proxy CORS público (cors-anywhere). Se der erro 403, acesse https://cors-anywhere.herokuapp.com/ e solicite acesso temporário.");
   </script>
 </body>
 </html>
