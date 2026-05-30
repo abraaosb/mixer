@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>NFC-e Scanner - Sem Backend (Proxy CORS)</title>
+  <title>NFC-e Scanner - Dados Reais (Sem Backend)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -121,12 +121,34 @@
   </div>
 
   <script>
-    // ========== CONFIGURACAO ==========
-    // Usamos um proxy CORS público para contornar bloqueios
+    // ========== PROXY CORS PÚBLICO (SEM BACKEND) ==========
     const CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
     const STORAGE_KEY = "nfce_data";
     let notasCache = { notas: {} };
     let chartInstance = null;
+
+    // Função para verificar/ativar o proxy (ajuda o usuário)
+    function verificarProxyAtivo() {
+      return new Promise((resolve, reject) => {
+        fetch(CORS_PROXY + "https://httpbin.org/get", { method: "HEAD", mode: "cors" })
+          .then(res => resolve(true))
+          .catch(() => reject(false));
+      });
+    }
+
+    async function ativarProxySeNecessario() {
+      try {
+        await verificarProxyAtivo();
+        return true;
+      } catch(e) {
+        const confirmar = confirm("⚠️ O proxy CORS precisa ser ativado uma única vez.\n\nClique em 'OK' para abrir a página de ativação. Depois, clique em 'Request temporary access' e retorne ao app.");
+        if (confirmar) {
+          window.open("https://cors-anywhere.herokuapp.com/", "_blank");
+          alert("Após ativar, volte e tente escanear/colar a URL novamente.");
+        }
+        return false;
+      }
+    }
 
     // ========== LOCALSTORAGE ==========
     function carregarLocalStorage() {
@@ -167,19 +189,15 @@
 
     // ========== EXTRAÇÃO REAL (via proxy CORS) ==========
     async function extrairNotaReal(url) {
-      // 1. Buscar HTML via proxy CORS
       const proxyUrl = CORS_PROXY + url;
       const response = await fetch(proxyUrl, {
-        headers: { "X-Requested-With": "XMLHttpRequest" } // necessário para cors-anywhere
+        headers: { "X-Requested-With": "XMLHttpRequest" }
       });
       if (!response.ok) throw new Error(`HTTP ${response.status} - Falha ao acessar a página`);
       const html = await response.text();
-
-      // 2. Parsear o HTML
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
 
-      // 3. Extrair dados usando os mesmos seletores do scraper Node.js
       // Estabelecimento
       let estabelecimento = "";
       const nomeEstab = doc.querySelector("#u20.txtTopo");
@@ -187,8 +205,7 @@
 
       // CNPJ
       let cnpj = "";
-      const divsTexto = doc.querySelectorAll("div.text");
-      divsTexto.forEach(div => {
+      doc.querySelectorAll("div.text").forEach(div => {
         const text = div.textContent.trim();
         const match = text.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
         if (match) cnpj = match[0];
@@ -205,8 +222,7 @@
 
       // Data de emissão
       let dataEmissaoStr = "";
-      const colapsiveis = doc.querySelectorAll("#infos .ui-collapsible-content ul li");
-      colapsiveis.forEach(li => {
+      doc.querySelectorAll("#infos .ui-collapsible-content ul li").forEach(li => {
         const txt = li.textContent;
         if (txt.includes("Emissão:")) {
           const match = txt.match(/Emissão:\s*(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})/);
@@ -220,7 +236,7 @@
         dataEmissaoISO = new Date(`${ano}-${mes}-${dia}T${horaPart}`).toISOString();
       }
 
-      // Valor total da nota
+      // Valor total
       let valorTotal = 0;
       const totalElem = doc.querySelector("#totalNota #linhaTotal .totalNumb");
       if (totalElem) {
@@ -230,8 +246,7 @@
 
       // Itens
       const itens = [];
-      const linhas = doc.querySelectorAll("#tabResult tr");
-      linhas.forEach(row => {
+      doc.querySelectorAll("#tabResult tr").forEach(row => {
         const nomeElem = row.querySelector(".txtTit");
         if (!nomeElem) return;
         const nome = nomeElem.textContent.trim();
@@ -286,10 +301,18 @@
         alert("URL inválida. Deve começar com http:// ou https://");
         return false;
       }
+
       const btn = document.getElementById("submitUrlBtn");
       const original = btn ? btn.innerText : "";
       if (btn) { btn.innerText = "Buscando dados..."; btn.disabled = true; }
+
       try {
+        // Tenta ativar proxy se necessário
+        const proxyOk = await ativarProxySeNecessario();
+        if (!proxyOk) {
+          if (btn) { btn.innerText = original; btn.disabled = false; }
+          return false;
+        }
         const nota = await extrairNotaReal(url);
         if (navigator.vibrate) navigator.vibrate(100);
         adicionarNota(nota);
@@ -298,9 +321,9 @@
         console.error(err);
         let msg = "Erro ao processar: " + err.message;
         if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-          msg = "Falha de rede. O proxy CORS pode estar temporariamente indisponível. Tente novamente mais tarde ou use o proxy alternativo.";
+          msg = "Falha de rede. Verifique sua internet e se o proxy CORS está ativo (https://cors-anywhere.herokuapp.com/).";
         } else if (err.message.includes("HTTP 403")) {
-          msg = "Proxy CORS bloqueou a requisição. Acesse https://cors-anywhere.herokuapp.com/ e clique em 'Request temporary access' antes de usar.";
+          msg = "Proxy CORS bloqueou a requisição. Acesse https://cors-anywhere.herokuapp.com/ e clique em 'Request temporary access'.";
         }
         alert(msg);
         return false;
@@ -309,7 +332,7 @@
       }
     }
 
-    // ========== DASHBOARD (idêntico ao anterior) ==========
+    // ========== DASHBOARD (mesmo código) ==========
     function calcularTotais() {
       let totalGeral = 0, totalMes = 0;
       const hoje = new Date();
@@ -388,7 +411,7 @@
       atualizarGrafico();
     }
 
-    // ========== SCANNER QR CODE (câmera) ==========
+    // ========== SCANNER QR CODE ==========
     let html5QrCode = null, isScanning = false;
     async function iniciarScanner() {
       const modal = document.getElementById("scannerModal");
@@ -439,7 +462,7 @@
 
     carregarLocalStorage();
     atualizarDashboard();
-    console.log("✅ Usando proxy CORS público (cors-anywhere). Se der erro 403, acesse https://cors-anywhere.herokuapp.com/ e solicite acesso temporário.");
+    console.log("✅ Usando proxy CORS público. Se precisar, ative em https://cors-anywhere.herokuapp.com/");
   </script>
 </body>
 </html>
