@@ -8,48 +8,44 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js para gráficos -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- html5-qrcode (leitor QR Code) -->
+  <!-- html5-qrcode (leitor QR Code) - versão estável -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    /* Customizações extras para overlay da câmera */
-    #qr-video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+    /* Customizações para overlay da câmera */
     .scanner-overlay {
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.8);
     }
     .scan-target {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 260px;
-      height: 260px;
-      border: 3px solid rgba(255,255,255,0.9);
-      border-radius: 24px;
+      width: 220px;
+      height: 220px;
+      border: 2px solid rgba(255,255,255,0.9);
+      border-radius: 20px;
       box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+      transition: border-color 0.1s ease;
     }
     .scan-target::before,
     .scan-target::after {
       content: '';
       position: absolute;
-      width: 40px;
-      height: 40px;
+      width: 35px;
+      height: 35px;
       border-color: #22c55e;
       border-style: solid;
       border-width: 0;
     }
     .scan-target::before {
-      top: -3px;
-      left: -3px;
+      top: -2px;
+      left: -2px;
       border-top-width: 4px;
       border-left-width: 4px;
     }
     .scan-target::after {
-      bottom: -3px;
-      right: -3px;
+      bottom: -2px;
+      right: -2px;
       border-bottom-width: 4px;
       border-right-width: 4px;
     }
@@ -61,9 +57,16 @@
     .fab:active {
       transform: scale(0.96);
     }
-    /* esconde scrollbar mas mantém funcionalidade */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
+    }
+    /* para o botão de flash custom */
+    .flash-btn {
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+    }
+    .flash-btn:active {
+      transform: scale(0.95);
     }
   </style>
 </head>
@@ -95,7 +98,7 @@
       <canvas id="spendingChart" height="180" class="w-full"></canvas>
     </div>
 
-    <!-- Top produtos e estabelecimentos (dois cards lado a lado) -->
+    <!-- Top produtos e estabelecimentos -->
     <div class="mx-4 mt-4 grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl shadow p-3">
         <h3 class="text-xs font-bold text-gray-600 mb-2">🏷️ Produtos + comprados</h3>
@@ -153,30 +156,20 @@
 
   <script>
     // ========== CONFIGURAÇÕES ==========
-    // Altere para false se tiver um proxy rodando em http://localhost:3001/api/parse-nfce
-    const USE_MOCK = true;  
+    const USE_MOCK = true;   // Modo simulação (não precisa de proxy)
     const PROXY_URL = "http://localhost:3001/api/parse-nfce";  // para modo real
 
-    // Chave do localStorage
     const STORAGE_KEY = "nfce_data";
-
-    // Estrutura: { notas: { chaveAcesso: { ... } } }
-    let notasCache = {};
-
-    // Variáveis globais do scanner
-    let html5QrCode = null;
-    let isScanning = false;
-
-    // Instância do gráfico
+    let notasCache = { notas: {} };
     let chartInstance = null;
 
-    // ========== FUNÇÕES AUXILIARES ==========
+    // ========== FUNÇÕES DE ARMAZENAMENTO ==========
     function carregarLocalStorage() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          notasCache = parsed.notas ? parsed : { notas: parsed }; // compatibilidade
+          notasCache = parsed.notas ? parsed : { notas: parsed };
           if (!notasCache.notas) notasCache = { notas: {} };
         } catch(e) { notasCache = { notas: {} }; }
       } else {
@@ -189,7 +182,6 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ notas: notasCache.notas }));
     }
 
-    // Adicionar ou atualizar nota (evita duplicatas pela chave)
     function adicionarNota(nota) {
       const chave = nota.chaveAcesso;
       if (!chave) return false;
@@ -217,14 +209,12 @@
       }
     }
 
-    // ========== MOCK DE EXTRATOR DA NFC-e (simula dados reais) ==========
+    // ========== MOCK DE EXTRAÇÃO (dados simulados realistas) ==========
     async function extrairViaMock(url) {
-      // Extrai a chave de acesso da URL (padrão SEFAZ-SP: ...?p=CHAVE44)
       let chave = "SIMULADO_" + Date.now();
       const match = url.match(/[?&]p=([A-F0-9]{44})/i);
       if (match) chave = match[1];
       
-      // Gera dados semi-aleatórios baseados na chave para consistência
       const estabelecimentos = ["Supermercado São João", "Atacadão do Povo", "Mercearia Central", "Farmácia Popular", "Posto Ipiranga"];
       const produtos = [
         { nome: "Arroz 5kg", valorUnit: 24.90, un: "UN" },
@@ -236,7 +226,7 @@
       ];
       const hash = chave.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
       const indexEstab = hash % estabelecimentos.length;
-      const numItens = (hash % 3) + 2; // 2 a 4 itens
+      const numItens = (hash % 3) + 2;
       const itens = [];
       let totalNota = 0;
       for (let i = 0; i < numItens; i++) {
@@ -255,7 +245,7 @@
       }
       
       const hoje = new Date();
-      const dataEmissao = new Date(hoje.getTime() - Math.random() * 30 * 86400000); // nota aleatória últimos 30 dias
+      const dataEmissao = new Date(hoje.getTime() - Math.random() * 30 * 86400000);
       return {
         chaveAcesso: chave,
         estabelecimento: estabelecimentos[indexEstab],
@@ -266,7 +256,6 @@
       };
     }
 
-    // Chamada real para o proxy (se desativar mock)
     async function extrairViaProxy(url) {
       const response = await fetch(PROXY_URL, {
         method: 'POST',
@@ -278,7 +267,6 @@
       return data;
     }
 
-    // Função principal de extração (mock ou proxy)
     async function processarQRCode(url) {
       let nota;
       if (USE_MOCK) {
@@ -286,15 +274,13 @@
       } else {
         nota = await extrairViaProxy(url);
       }
-      // Feedback sonoro e vibratório já no scanner, mas repetimos para garantir
       if (navigator.vibrate) navigator.vibrate(100);
       adicionarNota(nota);
     }
 
     // ========== DASHBOARD E GRÁFICOS ==========
     function calcularTotais() {
-      let totalGeral = 0;
-      let totalMes = 0;
+      let totalGeral = 0, totalMes = 0;
       const hoje = new Date();
       const mesAtual = hoje.getMonth();
       const anoAtual = hoje.getFullYear();
@@ -312,7 +298,6 @@
     function obterGastosPorDia(dias = 7) {
       const hoje = new Date();
       const map = new Map();
-      // inicializar últimos N dias com 0
       for (let i = 0; i < dias; i++) {
         const d = new Date(hoje);
         d.setDate(hoje.getDate() - i);
@@ -321,11 +306,8 @@
       }
       Object.values(notasCache.notas).forEach(nota => {
         const dataStr = new Date(nota.dataEmissao).toISOString().split('T')[0];
-        if (map.has(dataStr)) {
-          map.set(dataStr, map.get(dataStr) + nota.valorTotal);
-        }
+        if (map.has(dataStr)) map.set(dataStr, map.get(dataStr) + nota.valorTotal);
       });
-      // retornar arrays ordenados (do mais antigo para o mais novo)
       const sortedKeys = Array.from(map.keys()).sort();
       return {
         labels: sortedKeys.map(d => d.slice(5)),
@@ -334,7 +316,7 @@
     }
 
     function obterTopProdutos(limit = 5) {
-      const contagem = new Map(); // nome -> quantidade de vezes comprado (soma quantidade)
+      const contagem = new Map();
       Object.values(notasCache.notas).forEach(nota => {
         nota.itens.forEach(item => {
           const nome = item.nome;
@@ -364,8 +346,7 @@
       const container = document.getElementById("historicoContainer");
       if (!container) return;
       const notasArray = Object.entries(notasCache.notas).map(([chave, dados]) => ({
-        chave,
-        ...dados
+        chave, ...dados
       })).sort((a,b) => new Date(b.dataEmissao) - new Date(a.dataEmissao));
       
       if (notasArray.length === 0) {
@@ -420,58 +401,135 @@
       
       const topProdutos = obterTopProdutos(4);
       const topEstabs = obterTopEstabelecimentos(4);
-      
-      const prodList = document.getElementById("topProdutosList");
-      prodList.innerHTML = topProdutos.length ? topProdutos.map(p => `<li>• ${p}</li>`).join('') : '<li>Sem dados</li>';
-      
-      const estabList = document.getElementById("topEstabelecimentosList");
-      estabList.innerHTML = topEstabs.length ? topEstabs.map(e => `<li>• ${e}</li>`).join('') : '<li>Sem dados</li>';
+      document.getElementById("topProdutosList").innerHTML = topProdutos.length ? topProdutos.map(p => `<li>• ${p}</li>`).join('') : '<li>Sem dados</li>';
+      document.getElementById("topEstabelecimentosList").innerHTML = topEstabs.length ? topEstabs.map(e => `<li>• ${e}</li>`).join('') : '<li>Sem dados</li>';
       
       renderizarHistorico();
       atualizarGrafico();
     }
 
-    // ========== SCANNER QR CODE (custom com Html5Qrcode) ==========
+    // ========== SCANNER QR CODE MELHORADO (ALTA SENSIBILIDADE) ==========
+    let html5QrCode = null;
+    let isScanning = false;
+    let currentCameraId = null;
+    let flashEnabled = false;
+    let torchAvailable = false;
+
+    async function getBestCamera() {
+      const devices = await Html5Qrcode.getCameras();
+      if (devices.length === 0) throw new Error("Nenhuma câmera encontrada");
+      const backCamera = devices.find(device => device.label.toLowerCase().includes("back") || device.label.toLowerCase().includes("traseira"));
+      return backCamera ? backCamera.id : devices[0].id;
+    }
+
+    async function toggleFlash() {
+      if (!html5QrCode || !isScanning) return;
+      try {
+        flashEnabled = !flashEnabled;
+        await html5QrCode.applyVideoConstraints({
+          advanced: [{ torch: flashEnabled }]
+        });
+        const flashBtn = document.getElementById("customFlashBtn");
+        if (flashBtn) {
+          flashBtn.innerHTML = flashEnabled ? "🔦 Ligada" : "🔦 Lanterna";
+          flashBtn.classList.toggle("bg-yellow-300", flashEnabled);
+        }
+      } catch(e) {
+        console.warn("Lanterna não suportada neste dispositivo");
+        alert("Lanterna não disponível neste navegador/dispositivo");
+      }
+    }
+
     async function iniciarScanner() {
       const modal = document.getElementById("scannerModal");
       modal.classList.remove("hidden");
       
       const container = document.getElementById("qr-reader-container");
-      container.innerHTML = `<video id="qr-video" autoplay playsinline></video>`;
+      container.innerHTML = `<div id="qr-reader" style="width: 100%; height: 100%;"></div>`;
       
-      html5QrCode = new Html5Qrcode("qr-reader-container", { verbose: false });
+      // Adiciona botão flash customizado
+      let flashBtn = document.getElementById("customFlashBtn");
+      if (!flashBtn) {
+        flashBtn = document.createElement("button");
+        flashBtn.id = "customFlashBtn";
+        flashBtn.innerHTML = "🔦 Lanterna";
+        flashBtn.className = "flash-btn absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-white/80 text-black px-5 py-2 rounded-full text-sm font-semibold shadow-lg z-20";
+        flashBtn.onclick = toggleFlash;
+        modal.querySelector(".relative")?.appendChild(flashBtn);
+      }
+      
+      html5QrCode = new Html5Qrcode("qr-reader", { verbose: false });
+      
       try {
-        const devices = await Html5Qrcode.getCameras();
-        let cameraId = devices[0]?.id;
-        if (devices.length > 1 && devices.some(d => d.label.toLowerCase().includes("back"))) {
-          cameraId = devices.find(d => d.label.toLowerCase().includes("back"))?.id || cameraId;
-        }
-        await html5QrCode.start(cameraId, { fps: 10, qrbox: { width: 260, height: 260 } }, 
+        const cameraId = await getBestCamera();
+        currentCameraId = cameraId;
+        
+        const config = {
+          fps: 30,
+          qrbox: { width: 200, height: 200 },
+          aspectRatio: 1.0,
+          showTorchButtonIfSupported: false, // usamos nosso botão custom
+          videoConstraints: {
+            deviceId: { exact: cameraId },
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+        
+        await html5QrCode.start(cameraId, config,
           (decodedText) => {
-            // Sucesso: feedback e processamento
+            // Feedback visual na mira
+            const target = document.querySelector(".scan-target");
+            if (target) {
+              target.style.borderColor = "#4ade80";
+              target.style.transition = "0.1s";
+              setTimeout(() => target.style.borderColor = "rgba(255,255,255,0.9)", 150);
+            }
+            // Tátil e sonoro
             if (navigator.vibrate) navigator.vibrate(200);
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            oscillator.connect(gain);
-            gain.connect(audioCtx.destination);
-            oscillator.frequency.value = 880;
-            gain.gain.value = 0.2;
-            oscillator.start();
-            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.3);
-            setTimeout(() => oscillator.stop(), 300);
+            try {
+              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+              const oscillator = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              oscillator.connect(gain);
+              gain.connect(audioCtx.destination);
+              oscillator.frequency.value = 880;
+              gain.gain.value = 0.2;
+              oscillator.start();
+              gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.3);
+              setTimeout(() => oscillator.stop(), 300);
+            } catch(e) {}
             
             pararScanner();
             processarQRCode(decodedText).catch(err => {
               console.error(err);
               alert("Erro ao processar nota: " + err.message);
-              atualizarDashboard(); // recarrega mesmo assim
+              atualizarDashboard();
             });
           },
-          (err) => { console.warn("Scan error", err); }
+          (errorMessage) => {
+            // Não mostrar erros comuns de leitura
+            if (errorMessage.includes("No MultiFormat")) return;
+            console.warn(errorMessage);
+          }
         );
         isScanning = true;
+        
+        // Verifica suporte a lanterna
+        try {
+          torchAvailable = await html5QrCode.isTorchAvailable();
+          if (torchAvailable) {
+            flashBtn.style.display = "flex";
+          } else {
+            flashBtn.style.display = "none";
+          }
+        } catch(e) {
+          flashBtn.style.display = "none";
+        }
+        
       } catch (err) {
+        console.error(err);
         alert("Erro ao acessar câmera. Verifique as permissões.");
         pararScanner();
       }
@@ -480,35 +538,32 @@
     async function pararScanner() {
       if (html5QrCode && isScanning) {
         try {
+          if (torchAvailable && flashEnabled) {
+            await html5QrCode.applyVideoConstraints({ advanced: [{ torch: false }] });
+          }
           await html5QrCode.stop();
-        } catch(e) {}
-        html5QrCode.clear();
+          await html5QrCode.clear();
+        } catch(e) { console.warn(e); }
       }
       isScanning = false;
       const modal = document.getElementById("scannerModal");
       modal.classList.add("hidden");
       const container = document.getElementById("qr-reader-container");
       if (container) container.innerHTML = "";
+      const flashBtn = document.getElementById("customFlashBtn");
+      if (flashBtn) flashBtn.remove();
     }
-    
+
     // ========== EVENTOS E INICIALIZAÇÃO ==========
-    document.getElementById("fabScanner").addEventListener("click", () => {
-      iniciarScanner();
-    });
-    document.getElementById("closeScannerBtn").addEventListener("click", () => {
-      pararScanner();
-    });
-    document.getElementById("clearDataBtn").addEventListener("click", () => {
-      excluirTodasNotas();
-    });
+    document.getElementById("fabScanner").addEventListener("click", () => iniciarScanner());
+    document.getElementById("closeScannerBtn").addEventListener("click", () => pararScanner());
+    document.getElementById("clearDataBtn").addEventListener("click", () => excluirTodasNotas());
     
-    // Inicializar dados
     carregarLocalStorage();
     atualizarDashboard();
     
-    // Se houver mock habilitado, exibir aviso leve no console
     if (USE_MOCK) {
-      console.log("Modo MOCK ativo: os dados das notas são simulados. Para usar proxy real, altere USE_MOCK = false e execute o backend Node.js.");
+      console.log("✅ Modo MOCK ativo (dados simulados). Para usar proxy real, altere USE_MOCK = false.");
     }
   </script>
 </body>
