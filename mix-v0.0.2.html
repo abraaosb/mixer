@@ -790,21 +790,6 @@
         return null;
     }
     
-    // Importação (mantida)
-    // async function importYouTubePlaylist(playlistId) { /* igual ao original, por brevidade omitido mas funcional */ 
-    //     const proxyFetch = async () => {
-    //         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://www.youtube.com/playlist?list=${playlistId}`)}`;
-    //         const response = await fetch(proxyUrl);
-    //         const html = await response.text();
-    //         const ids = [...new Set([...html.matchAll(/\/watch\?v=([a-zA-Z0-9_-]{11})/g)].map(m => m[1]))];
-    //         if (!ids.length) throw new Error("Nenhum vídeo");
-    //         return ids;
-    //     };
-    //     if (importMethod === 'proxy') return await proxyFetch();
-    //     else {
-    //         try { return await proxyFetch(); } catch(e) { return await proxyFetch(); }
-    //     }
-    // }
     async function importYouTubePlaylist(playlistId) {
 
         const apiKey = "AIzaSyC_PSy3WofF_UcDMTYtuK0DcVnKHsOxN0g";
